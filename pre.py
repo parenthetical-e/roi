@@ -108,8 +108,6 @@ def mask(nifti, roi, standard=True):
         ## as they are within the neighborhood
         ## by default
 
-    print("size of: roi_index: {0}, roi_index_filtered: {1}, roi_std_index: {2}, nifti_std_index: {3}, neighborhood: {4}".format(len(roi_index), len(roi_index_filtered), len(roi_std_index), nifti_std_index.shape, neighborhood))
-
     # As _search_neighborhood() returns subarays
     # Needed an efficient way to concat them
     # row-wise, thus list.extend()
@@ -119,27 +117,19 @@ def mask(nifti, roi, standard=True):
     matches = np.array(matches)
         ## But in the end we need an array
 
-    print("Shape of matches: {0}".format(matches.shape))
-
     inv_nifti_affine = np.linalg.inv(nifti_affine)
     nifti_index_reduced = np.array([_affine_xyz(xyz, inv_nifti_affine) for 
             xyz in matches])
         ## Just invert the affine to get back
         ## to native space
     
-    print("inv_roi_affine: {0}".format(inv_nifti_affine))
-    print("size: nifti_index_reduced: {0}".format(len(nifti_index_reduced)))
-
     # Use n_i_reduced to make a mask...
     # Starting with zeros at every match 
     # put in a 1, finally convert to bool.
     vol_mask = np.zeros(nifti_shape)
     for x, y, z in nifti_index_reduced:
         vol_mask[x, y, z] = 1
-
-    print vol_mask
     vol_mask = vol_mask == 1
-    print("Shape: vol_mask: {0}".format({vol_mask.shape}))
 
     # -- 
     # Reduce the data from nifti 
@@ -170,7 +160,6 @@ def _search_neighborhood(index, location, neighborhood):
     return index[n_mask,:]
     
         
-
 def _native_index(data):
     """ Create an index for the given <shape>. Each set of x, y and z 
     coordinates are stored in a tuple, returns a list of these tuples.
@@ -190,11 +179,9 @@ def _native_index(data):
     y_flat = y_initial.flatten()
     z_flat = z_initial.flatten()
 
-    # Make tuple-sets of the indices,
-    # again simplfying iteration
     return np.array([x_flat, y_flat, z_flat]).transpose()
         ## Want col oriented for easy iteration
-    
+
 
 def _affine_index(data, affine):
     """ Returns a real-world (i.e. millimeter scale) index
@@ -237,7 +224,7 @@ def _affine_xyz(xyz, affine):
 
     # The transform, at last
     # and convert to int, 
-    # it is an index point afterall.
+    # it is an index afterall.
     xyz_trans = np.int16(np.round(affine.dot(homo_xyz.transpose())))
         ## Rounding here is 1d nearest
         ## neighbor interpolation
@@ -245,7 +232,7 @@ def _affine_xyz(xyz, affine):
         ## axes (i.e. x, y, z).
     
     return xyz_trans[0:3]
-        ## Dropping homogenous rows
+        ## Dropping homogenous coords
     
 
 # Use index for each to mask.

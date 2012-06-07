@@ -6,7 +6,6 @@ import nitime
 import roi
 
 import numpy as np
-import nitime.fmri.io as fio
 
 from copy import deepcopy
 from scikits.statsmodels.api import GLS
@@ -23,10 +22,12 @@ class Roi():
         self.TR = TR
         self.trials = trials
         self.roi_name = roi_name
-        self.data = data
         
+        if data == None:
+            self.data = {}
         self.data['meta'] = {}
-            ## meta is for model metadata
+            ## meta is for 
+            ## model metadata
 
         # ---
         # Intialize model data structues
@@ -47,14 +48,6 @@ class Roi():
         self.results = {}
             ## Results from calling self.extract_results()
 
-        # ---
-        # Misc
-        self.nifti = None
-        self.roi_data = None
-        self.coords = None
-            ## Roi data IO and formating
-            ## variables.
-
 
     def _convolve_hrf(self, arr):
         """
@@ -64,22 +57,21 @@ class Roi():
         # self.hrf may or may not exist yet
         # create it when needed.
         if self.hrf == None:
-            raise ValueError('No hrf is defined.  Try self.create_hrf()?')
-
-        arr = np.asarray(arr)
-            ## Just in case it is not already...
-
-        arr_c = np.zeros_like(arr)
-            ## Where the convolved data goes
+            raise ValueError('No hrf is defined. Try self.create_hrf()?')
         
-        # Assume 2d (or really N > 1 d), fall back to 1d.
+        arr = np.asarray(arr)   ## Just in case 
+
+        # Assume 2d (or really N > 1 d), 
+        # fall back to 1d.
+        arr_c = np.zeros_like(arr)
         try:
-            for ii in range(arr.shape[1]):
-                arr_c[:,ii] = np.convolve(arr[:,ii], basis)[0:arr.shape[0]]
+            for col in range(arr.shape[1]):
+                arr_c[:,col] = np.convolve(
+                        arr[:,col], self.hrf)[0:arr.shape[0]]
                     ## Convolve and truncate to length
                     ## of arr
         except IndexError:
-            arr_c = np.convolve(arr[:], basis)[0:arr.shape[0]]
+            arr_c = np.convolve(arr[:], self.hrf)[0:arr.shape[0]]
         
         return arr_c
 
@@ -115,9 +107,9 @@ class Roi():
         model_results = {}
         for key, val in tosave.items():
             try:
-                model_results[key] = deepcopy(getattr(self.model, val)())
+                model_results[key] = deepcopy(getattr(self.glm, val)())
             except TypeError:
-                model_results[key] = deepcopy(getattr(self.model, val))
+                model_results[key] = deepcopy(getattr(self.glm, val))
             except AttributeError:
                 continue
         
@@ -142,11 +134,11 @@ class Roi():
         # 2d binary 2d array.  Each row is a trial
         # and each column is a condition.
         dm_unit = np.zeros((num_trials, num_conds))
-        for ii, cond in enumerate(cond_levels):
+        for col, cond in enumerate(cond_levels):
             mask = trials_arr == cond
                 ## as a boolean array
 
-            dm_unit[mask,ii] = 1
+            dm_unit[mask,col] = 1
 
         return dm_unit
 
@@ -179,10 +171,9 @@ class Roi():
             dm_temp = np.zeros((num_trials, num_names))
 
             mask = trials_arr == cond
-                ## as a boolean array
 
-            for jj, name in enumerate(names):
-                dm_temp[mask,jj] = name_data[name][mask]
+            for col, name in enumerate(names):
+                dm_temp[mask,col] = name_data[name][mask]
                     ## Get the named data, then mask it
 
             # Store the temporary DM in 
@@ -190,7 +181,7 @@ class Roi():
             if dm_name_data == None:
                 dm_name_data = dm_temp
             else:
-                dm_name_data = np.hstack(dm_name_data, dm_temp)
+                dm_name_data = np.hstack((dm_name_data, dm_temp))
 
         # Create the unit DM too, then combine them.
         # defining self.dm in the process
@@ -219,11 +210,11 @@ class Roi():
             #
             # Comparison of Filtering Methods for fMRI Datasets
             # F. Kruggela, D.Y. von Cramona, X. Descombesa
-            # NeuroImage 10(5), 1999, 530–543.
-            ts = nitime.TimeSeries(arr[...,col], 1, self.TR)
-            fs = nitime.analysis.FilterAnalyzer(ts, ub=None, lb=0.008)
+            # NeuroImage 10 (5), 1999, 530 - 543.
+            tsi = nitime.TimeSeries(arr[...,col], 1, self.TR)
+            fsi = nitime.analysis.FilterAnalyzer(tsi, ub=None, lb=0.008)
             
-            filtered[...,col] = fs.fir.data
+            filtered[...,col] = fsi.fir.data
 
         return filtered
 
@@ -242,9 +233,10 @@ class Roi():
         function_name will accept when called.
         
         If <params> is None the default parameters are used, if 
-        possible. """
+        possible. 
+        
+        hrf function_names are 'mean_fir' and 'double_gamma'. """
 
-        # TODO -- test
         if params == None:
             self.hrf = getattr(roi.hrfs, function_name)(self)
         else:
@@ -260,7 +252,6 @@ class Roi():
         
         <convolve> - if True, the dm is convolved with the HRF. """
 
-        # TODO -- test!
         if names == None:
             self.dm = self._create_dm_unit()
         else:
@@ -274,18 +265,18 @@ class Roi():
         """ Extract the fMRI data from roi_name and <preprocess> it,
         if True. """
         
-        
-        self.nifti = nibabel.nifti1.load(self.roi_name)
+       # TODO - test 
+        nifti = nibabel.nifti1.load(self.roi_name)
 
         # Isolate non-zero timecourses 
         # in nifti
-        data = self.nifti.get_data()
+        data = nifti.get_data()
         mask = data < 1
-            ## Bold data will alway be greater than 1
+            ## <ScrollWheelUp>Bold data will alway be greater than 1
             ## but we want a inverted mask...
         
         # Create a masked array...
-        mdata = np.mp.MaskArray(data=data, mask=mask)
+        mdata = np.ma.MaskArray(data=data, mask=mask)
 
         # Use masked array to average over x, y, z
         # only for non-zero fMRI data, 
@@ -310,7 +301,7 @@ class Roi():
         # Add movement regressors... if present
         try:
             dm_movement = self.data['movement']
-            dm = np.vstack(dm, dm_movement)
+            dm = np.vstack((dm, dm_movement))
         except KeyError:
             pass
         
@@ -326,18 +317,21 @@ class Roi():
     
     
     def contrast(self, contrast):
-        """
-        Uses the current model to statistically compare predictors 
-        (t-test), returning t and p values.
+        """ Uses the current model to statistically compare predictors 
+        (t-test), returning df, t and p values.
         
-        <contrast> - a list of {1,0,-1} the same length as the number
-            of predictors in the model (sans the dummy).
+        <contrast> - a 1d list of [1,0,-1] the same length as the number
+            of predictors in the model (sans the dummy, which is added
+            silently). """
         
-        If <contrast> is 2d, each row is treated as a separate contrast.
-        """
+        if self.glm = None:
+            raise ValueError("No glm present.  Try self.fit()?")
         
-        # TODO
-        pass
+        contrast = self.glm.t_test(contrast)
+            ## This a thin wrapper for 
+            ## statsmodels contrast() method
+
+        return contrast.df_denom, contrast.tvalue, contrast.pvalue
 
 
     def model_00(self):
@@ -348,7 +342,7 @@ class Roi():
         self.data['meta']['dm'] = [str(cond) for cond in set(self.trials)]
 
         self.create_bold(preprocess=True)
-        self.create_hrf(function_name='mean_fir')
+        self.create_hrf(function_name='mean_fir', params={'window_size':24})
         self.create_dm(names=None, convolve=True)
         
         self.fit(norm='zscore')
