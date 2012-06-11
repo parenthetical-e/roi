@@ -5,7 +5,8 @@ import nibabel as nb
 
 def join_time(nifti1, nifti2):
     """ Join two <nifti> objects along their 4th axis, time (i.e 
-    volumes or TRs). Note: affline and header data is lost. """
+    volumes or TRs). Note: affline and header data is inherited from
+    nifti1. """
 
     # Get the data for nifti1 and 2,
     data1 = nifti1.get_data()
@@ -14,7 +15,7 @@ def join_time(nifti1, nifti2):
     data2 = nifti2.get_data()
     shape2 = data2.shape
 
-    joined = np.array()     ## Init
+    joined = np.array([])     ## Init
 
     # and join it.
     try:
@@ -32,7 +33,24 @@ def join_time(nifti1, nifti2):
         joined = np.append(data1, data2, 3)
 
     # Convert to a nifti object
-    return nb.Nifti1Image(joined)
+    asnifti = nb.Nifti1Image(
+            joined, affine=nifti1.get_affine(), header=nifti1.get_header())
+    asnifti.update_header()
+
+    return asnifti
+
+
+def num_active_voxels(nifti):
+    """ Returns the number of voxels in the first volume of <nifti> 
+    (a nibabel object) that contain data. """
+
+    # Assume 3d, but if 4d 
+    # only keep first vol. 
+    vol = nifti.get_data()
+    if vol.ndim > 3:
+        vol = vol[...,0]
+
+    return np.sum(vol > 0.01)
 
 
 def mask(nifti, roi, standard=True):

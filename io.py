@@ -5,15 +5,13 @@ import numpy as np
 import nibabel as nb
 
 
-def _walk(dictionary, hdf):
-    """ 
-    Recursively walk the provided dict <d> creating groups or saving data 
-    in <hdf>, as appropriate.
-    """
+def _walkd(dictionary, hdf):
+    """ Recursively walk the provided dict <dictionary> creating groups 
+    or saving data in <hdf> (a hdf file object), as appropriate. """
     for key, val in dictionary.items():
         if isinstance(val, dict):
             hdfnext = hdf.create_group(key)
-            _walk(val, hdfnext)
+            _walkd(val, hdfnext)
                 ## gettin' all recursive and shit, yo.
         else:
             if val is None: 
@@ -26,12 +24,11 @@ def _walk(dictionary, hdf):
 
 
 def write_hdf(results, name):
-    """ 
-    Iterate over the <results> list (a list of dicts containing, mimicking the hierarchical structure
-    of each entry.  Name the resulting file <name>.
-    """
-    from simfMRI.io import _walk
-    
+    """ Iterate over the <results> list (a list of dicts containing, mimicking 
+    the hierarchical structure of each entry.  Name the resulting file 
+    <name>. """
+    from simfMRI.io import _walkd
+
     hdf = h5py.File(name, 'w')
     for ii, res in enumerate(results):
         # Create a top level group for each res
@@ -39,7 +36,7 @@ def write_hdf(results, name):
         # Anything that is not a dict is 
         # assumed to be data.
         hdf_ii = hdf.create_group(str(ii))
-        _walk(res, hdf_ii)
+        _walkd(res, hdf_ii)
     
     hdf.close()
 
@@ -51,10 +48,8 @@ def write_nifti(nifti, name):
 
 
 def read_hdf(name, path='/model_01/bic'):
-    """ 
-    In the <hdf> file, for every top-level node return the 
-    data specified by path.
-    """
+    """ In the <hdf> file, for every top-level node return the 
+    data specified by path. """
 
     # First locate the dataset in the first result,
     # then grab that data for every run.
@@ -64,10 +59,8 @@ def read_hdf(name, path='/model_01/bic'):
 
 
 def read_hdf_inc(name, path='/model_01/bic'):
-    """ 
-    In <name> (a hdf file), for every top-level node *incrementally* 
-    return the data specified by <path>.
-    """
+    """ In <name> (a hdf file), for every top-level node *incrementally* 
+    return the data specified by <path>. """
 
     # First locate the dataset in the first result,
     # then grab that data for every run.

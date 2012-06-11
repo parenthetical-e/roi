@@ -1,4 +1,5 @@
 atlases/
+private/
 
 *.py[co]
 

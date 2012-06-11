@@ -324,7 +324,7 @@ class Roi():
             of predictors in the model (sans the dummy, which is added
             silently). """
         
-        if self.glm = None:
+        if self.glm == None:
             raise ValueError("No glm present.  Try self.fit()?")
         
         contrast = self.glm.t_test(contrast)
