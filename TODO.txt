@@ -14,7 +14,8 @@ create model summary function, for debug safety
 	0	box (all) 		# And above should be equal.
 	1	6 stim (separate)
 	
-	2	box + resp1 + resp2
+	20	box + resp1 + resp2
+	21	box + corrresp1 + corresp2
 	3	box + rt
 
 	40	box + distance
