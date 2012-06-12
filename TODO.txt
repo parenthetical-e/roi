@@ -1,0 +1,39 @@
+# Behave
+test timing.py
+grab behave data, concat it.
+
+# RL
+get params for all Ss.
+gen data for each S.
+
+# roi
+test create_bold
+create subclass and write models for roi.run()
+create model summary function, for debug safety
+
+	0	box (all) 		# And above should be equal.
+	1	6 stim (separate)
+	
+	2	box + resp1 + resp2
+	3	box + rt
+
+	40	box + distance
+	41  box + distance_both
+
+	5	box + gain/loss (bivalent)
+
+	6	box + acc
+	7	box + rpe
+	8	box + value
+
+	9	box + acc_d
+	10	box + rpe_d
+	11	box + value_d
+
+	12	box + acc_bothd
+	13	box + rpe_bothd
+	14	box + value_bothd
+
+# Analysis
+plots?
+stats?

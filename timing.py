@@ -8,7 +8,8 @@ def dtime(trials, duration, drop=None):
 	
 	<drop> allows you to create sub-trial/duration time 
 	representations. It is a binary list of length duration.  
-	'1' mean drop that entry, 0 means keep.  Dropped events are 0.
+	'1' mean drop that entry, 0 means keep.  Dropped trial
+	codes are also 0.
 	
 	For example, if trial was 2 and duration was 3
 	the new represenation would be for trial would be 
@@ -47,7 +48,9 @@ def map_data_to_conditions(data, conditions):
 	This function corrects for that, adding zero-filled rows to 
 	data when conditions is zero. 
 	
-	<conditions> shouls be an integer sequence of trial events. 
+	<conditions> shouls be an integer sequence of trial events.
+		'0' indicates a jitter period.  In implictly assumes 
+		jitter and trial lengths are the same.
 	<data> should be a 1 or 2 d array-like object. """
 	
 	conditions = np.array(conditions, dtype=np.uint32)
