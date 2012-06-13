@@ -22,31 +22,23 @@ class Roi():
         self.TR = TR
         self.trials = trials
         self.roi_name = roi_name
-        
+
         if data == None:
             self.data = {}
-        self.data['meta'] = {}
-            ## meta is for 
-            ## model metadata
+
+        self.data['meta'] = {}  ## meta is for model metadata
 
         # ---
-        # Intialize model data structues
-        self.hrf = None
-            ## To define use self.create_hrf()
-        self.dm = None
-            ## To define use self.create_dm()
-        self.bold = None 
-            ## To define use self.create_bold()
+        # Intialize model data structues,
+        # these take on values by calling:
+        self.hrf = None     ## self.create_hrf()
+        self.dm = None      ## self.create_dm() or create_dm_pararm()
+        self.bold = None    ## self.create_bold()
 
         # --- 
         # The two flavors of results
-        self.glm = None
-            ## Valued after calling self.fit()
-            ## that is, it exists after you do the
-            ## regression.
-
-        self.results = {}
-            ## Results from calling self.extract_results()
+        self.glm = None     ## self.fit(), fit a regrssion model
+        self.results = {}   ## self.extract_results() into a dict
 
 
     def _convolve_hrf(self, arr):
@@ -55,7 +47,6 @@ class Roi():
         """
         
         # self.hrf may or may not exist yet
-        # create it when needed.
         if self.hrf == None:
             raise ValueError('No hrf is defined. Try self.create_hrf()?')
         
@@ -116,8 +107,79 @@ class Roi():
         return model_results
 
 
-    def _create_dm_unit(self):
-        """ Create a unit (boxcar-only) DM """
+    def _filter_array(self, arr):
+        """ Filter and smooth the 1 or 2 d <arr>ay. """    
+        
+        if len(arr.shape) > 2:
+            raise ValueError("<arr> must be 1 or 2d.")
+        
+        try:
+            n_col = arr.shape[1]
+        except IndexError:
+            n_col = 1
+
+        filtered = np.ones_like(arr)
+        for col in range(n_col):         
+            # Then use nitime to 
+            # high pass filte using FIR
+            # (~1/128 s, same cutoff as SPM8's default)
+
+            # FIR did well in:
+            #
+            # Comparison of Filtering Methods for fMRI Datasets
+            # F. Kruggela, D.Y. von Cramona, X. Descombesa
+            # NeuroImage 10 (5), 1999, 530 - 543.
+            tsi = nitime.TimeSeries(arr[...,col], 1, self.TR)
+            fsi = nitime.analysis.FilterAnalyzer(tsi, ub=None, lb=0.008)
+            
+            filtered[...,col] = fsi.fir.data
+
+        return filtered
+
+
+    def _normalize_array(self, arr, function_name):
+        """ Normalize the <arr>ay using the <function_name> 
+        of one of the functions in roi.norm """
+
+        return getattr(roi.norm, function_name)(arr)
+
+
+    def _orth_array(self, arr):
+        """ Orthgonalize each col in (2d) <arr> with respect to its 
+        left neighbor.  """
+
+        arr = np.array(arr)
+        if arr.ndim != 2:
+            raise ValueError("arr must be 2d.")
+
+        orth_arr = np.zeros_like(arr)
+
+        # TODO - the orth
+
+        return orth_arr
+
+    def create_hrf(self, function_name, params=None):
+        """ Creates an hemodynamic response model using the 
+        function named <function_name> in roi.hrfs using
+        <params> which should be a dictionary of parameters that 
+        function_name will accept when called.
+        
+        If <params> is None the default parameters are used, if 
+        possible. 
+        
+        hrf function_names are 'mean_fir' and 'double_gamma'. """
+
+        if params == None:
+            self.hrf = getattr(roi.hrfs, function_name)(self)
+        else:
+            self.hrf = getattr(roi.hrfs, function_name)(self, **params)
+
+
+    def create_dm(self, convolve=True):
+        """ Create a unit (boxcar-only) DM with one columns for each 
+        condition in self.trials.  
+        
+         If <convolve> the dm is convolved with the HRF (self.hrf). """
 
         trials_arr = np.array(self.trials)
             ## Makes masking easy
@@ -140,11 +202,22 @@ class Roi():
 
             dm_unit[mask,col] = 1
 
-        return dm_unit
+        self.dm = dm_unit
+        
+        if convolve:
+            self.dm = self._convolve_hrf(self.dm)
 
 
-    def _create_dm_parametric(self, names):
-        """ Create a parametric DM based on <names> in self.data. """
+    def create_dm_param(self, names, box=True, orth=False, convolve=True):
+        """ Create a parametric design matrix based on <names> in self.data. 
+        
+        If <box> a univariate dm is created that fills the leftmost
+        side of the dm.
+
+        If <orth> each regressor is orthgonalized with respect to its
+        left-hand neighbor (excluding the baseline).
+        
+        If <convolve> the dm is convolved with the HRF (self.hrf). """
 
         trials_arr = np.array(self.trials)
             ## Makes masking easy
@@ -186,77 +259,22 @@ class Roi():
         # Create the unit DM too, then combine them.
         # defining self.dm in the process
         dm_unit = self._create_dm_unit()
-        self.dm = np.hstack((dm_unit, dm_name_data)) 
-
-
-    def _filter_array(self, arr):
-        """ Filter and smooth the 1 or 2 d <arr>ay. """    
-        
-        if len(arr.shape) > 2:
-            raise ValueError("<arr> must be 1 or 2d.")
-        
-        try:
-            n_col = arr.shape[1]
-        except IndexError:
-            n_col = 1
-
-        filtered = np.ones_like(arr)
-        for col in range(n_col):         
-            # Then use nitime to 
-            # high pass filte using FIR
-            # (~1/128 s, same cutoff as SPM8's default)
-
-            # FIR did well in:
-            #
-            # Comparison of Filtering Methods for fMRI Datasets
-            # F. Kruggela, D.Y. von Cramona, X. Descombesa
-            # NeuroImage 10 (5), 1999, 530 - 543.
-            tsi = nitime.TimeSeries(arr[...,col], 1, self.TR)
-            fsi = nitime.analysis.FilterAnalyzer(tsi, ub=None, lb=0.008)
-            
-            filtered[...,col] = fsi.fir.data
-
-        return filtered
-
-
-    def _normalize_array(self, arr, function_name):
-        """ Normalize the <arr>ay using the <function_name> 
-        of one of the functions in roi.norm """
-
-        return getattr(roi.norm, function_name)(arr)
-
-
-    def create_hrf(self, function_name, params=None):
-        """ Creates an hemodynamic response model using the 
-        function named <function_name> in roi.hrfs using
-        <params> which should be a dictionary of parameters that 
-        function_name will accept when called.
-        
-        If <params> is None the default parameters are used, if 
-        possible. 
-        
-        hrf function_names are 'mean_fir' and 'double_gamma'. """
-
-        if params == None:
-            self.hrf = getattr(roi.hrfs, function_name)(self)
+        if box:
+            self.dm = np.hstack((dm_unit, dm_name_data))
         else:
-            self.hrf = getattr(roi.hrfs, function_name)(self, **params)
+            self.dm = np.hstack((dm_unit[:,0], dm_name_data))
+                ## If not including the boxcar,
+                ## we still need the baseline model.
 
+        # Orthgonalize the regessors?
+        if orth:
+            if (dm_unit.ndim > 1) and (dm_unit.shape[1] > 2):
+                raise ValueError("orth can't be used if the univariate DM\
+                        has more than one non-baseline entry.")
 
-    def create_dm(self, names=None, convolve=True):
-        """
-        Creates a design matrix (dm).  If <names> is None a boxcar
-        (univariate) design is created.  If <names> is a sequence of
-        names matching keys in self.data, a paramertric desgin matrix
-        is created instead.
-        
-        <convolve> - if True, the dm is convolved with the HRF. """
+            self.dm = _orth_arr(self.dm)
 
-        if names == None:
-            self.dm = self._create_dm_unit()
-        else:
-            self.dm = self._create_dm_parametric(names) 
-
+        # Convolve with self.hrf?
         if convolve:
             self.dm = self._convolve_hrf(self.dm)
 
@@ -269,11 +287,10 @@ class Roi():
         nifti = nibabel.nifti1.load(self.roi_name)
 
         # Isolate non-zero timecourses 
-        # in nifti
         data = nifti.get_data()
-        mask = data < 1
-            ## <ScrollWheelUp>Bold data will alway be greater than 1
-            ## but we want a inverted mask...
+        mask = data < 0.1
+            ## Bold data will alway be greater than 0.1
+            ## but we want an inverted mask...
         
         # Create a masked array...
         mdata = np.ma.MaskArray(data=data, mask=mask)
@@ -343,7 +360,7 @@ class Roi():
 
         self.create_bold(preprocess=True)
         self.create_hrf(function_name='mean_fir', params={'window_size':24})
-        self.create_dm(names=None, convolve=True)
+        self.create_dm(convolve=True)
         
         self.fit(norm='zscore')
 

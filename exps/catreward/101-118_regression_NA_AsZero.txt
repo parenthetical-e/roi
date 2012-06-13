@@ -1,4 +1,4 @@
-blockindex	stim	cresp	acc	rt	resp	category	width	angle	ignore	value	ignore2	stimindex	sub	resp1	resp6	cresp6	cresp1
+blockindex	stim	cresp	acc	rt	resp	category	width	angle	ignore	gl	ignore2	stimindex	sub	resp1	resp6	cresp6	cresp1
 1	tree39.jpg	6	0	0	5	0	0	0	0	0	0	1	101	0	0	1	0
 2	tree39.jpg	6	1	0.962321	6	2	71.3283	57	-1	1	0	2	101	0	1	1	0
 3	tree11.jpg	1	0	0	5	0	0	0	0	0	0	1	101	0	0	0	1
