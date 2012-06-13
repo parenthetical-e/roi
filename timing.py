@@ -2,7 +2,7 @@
 import numpy as np
 
 
-def dtime(trials, duration, drop=None):
+def dtime(trials, durations, drop=None):
     """ Map <trials>, a sequences of values (could be integers,
     representing trial conditions or real valued data from model) 
     into another temporal space, using duration, an integer, 
@@ -21,61 +21,61 @@ def dtime(trials, duration, drop=None):
     [2, 0, 2].  Likwise if drop was [1, 0, 1] trial would be
     [0, 2, 0].
         
-    Returns a list of the mapped trials. """
+    Note: If duration for that trial is less than the length
+    of drop, rightside excess entries of drop are ignored.
 
-    trials = np.array(trials)
-        
-    if (trials.ndim > 1):
-        raise TypeError("trials must be 1d.")
-
-    if not isinstance(duration, int):
-        raise ValueError("duration must be an integer.")
+    Returns a list of the duration mapped trials. """
 
     dtrials = []
-    if drop == None:    
-        [dtrials.extend([trial, ] * duration) for trial in trials]
+    if drop == None:
+        # Using tuple math, repeat trial by dur
+        # adding flattly to dtrials.
+        [dtrials.extend([trial, ] * dur) for trial, dur in zip(
+            trials, durations)]
     else:
+        # As above but dropping trial entries       
         mask = np.array(drop) == 1
-        for trial in trials:
-            dtrial = np.array([trial, ] * duration)
-            dtrial[mask] = 0
+            ## Convert drop to a bool mask
+        
+        for trial, dur in zip(trials, durations):
+            dtrial = np.array([trial, ] * dur)
+            dtrial[mask[0:dur]] = 0
+                ## Apply mask
+                ## drop rightside excess entries in drop as dur 
+
             dtrials.extend(dtrial.tolist())
 
     return dtrials
 
 
-# TODO debug, test
-def add_empty(data, trials):
-    """ Collected behavoiral data may not include (empty)
+def add_empty(data, conditions):
+    """ Collected behavioral data may not include (empty)
     jitter periods.  This function corrects for that, adding 
     zero-filled rows to data when conditions is zero. 
     
     <conditions> shouls be an integer sequence of trial events.
         '0' indicates a jitter period.  In implictly assumes 
         jitter and trial lengths are the same.
-    <data> should be a 1 or 2 d array-like object. """
-    
-    conditions = np.array(conditions, dtype=np.uint32)
-        ## Cast as int, if it fails, good. 
-        ## We only want int.
+    <data> should be a list. """
+    from copy import deepcopy
 
-    data = np.array(data)
-    if data.ndim > 2:
-        raise ValueError("data must be 1 or 2 d.")
+    # Reverse for pop.
+    rdata = deepcopy(data)
+    rdata.reverse()
 
-    # Init, assuming 2d, 
-    # dropping back to 1d.
-    mappedata = np.array([])
-    try:
-        mappedata = np.zeros((conditions.shape[0], data.shape[1]))
-    except IndexError:
-        mappedata = np.zeros(conditions.shape[0])
-    
-    # map: data -> cdata, if conditions != 0
-    mappedata[conditions != 0] = data[:,]
-        ## This will die if the number of rows in data
-        ## does not match the number of non-zero conditions,
-        ## which is what we want.
-        
-    return mappedata
-    
+    # Assume we want to fill with zeros
+    # but change to strings if data
+    # is a list of strings.
+    empty = 0
+    if hasattr(data[0], 'capitalize'):
+        ## a standard string-like method   
+        empty = '0'
+
+    data_w_empty = []
+    for cond in conditions:
+        if (cond == 0) or (cond == '0'):
+            data_w_empty.append(empty)
+        else:
+            data_w_empty.append(rdata.pop())
+
+    return data_w_empty
