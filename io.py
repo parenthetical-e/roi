@@ -27,7 +27,6 @@ def write_hdf(results, name):
     """ Iterate over the <results> list (a list of dicts containing, mimicking 
     the hierarchical structure of each entry.  Name the resulting file 
     <name>. """
-    from simfMRI.io import _walkd
 
     hdf = h5py.File(name, 'w')
     for ii, res in enumerate(results):

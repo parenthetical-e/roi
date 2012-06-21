@@ -2,6 +2,7 @@
 import numpy as np
 import nitime as nt
 
+import roi
 
 def double_gamma(self, width=32, a1=6.0, a2=12.0, b1=0.9, b2=0.9, c=0.35):
     """ Returns a HRF.  Defaults are the canonical parameters. """
@@ -24,22 +25,30 @@ def mean_fir(self, window_size=30):
     <window_size> is the expected length of the haemodynamic response
     in TRs. """
 
-    if self.bold == None:
+    bold = self.bold.copy()
+    if bold == None:
         raise ValueError(
-                'No bold signal is defined. Try create_bold(...)?')
- 
+                'No bold signal is defined. Try create_bold()?')
+
+    # Convert trials to tr
+    trials_in_tr = roi.timing.dtime(self.trials, self.durations, None, 0)
+    
+    # Truncate bold or trials_in_tr if needed
+    try:
+        bold = bold[0:trials_in_tr.shape[0]]
+        trials_in_tr = trials_in_tr[0:bold.shape[0]]
+    except IndexError:
+        pass
+
     # Convert  self.bold (an array) to a nitime TimeSeries
     # instance
-    ts_bold = nt.TimeSeries(
-            self.bold, sampling_interval=self.TR)
+    ts_bold = nt.TimeSeries(bold, sampling_interval=self.TR)
 
     # And another one for the events (the different stimuli):
-    ts_trials = nt.TimeSeries(
-            self.trials, sampling_interval=self.TR)
+    ts_trials = nt.TimeSeries(trials_in_tr, sampling_interval=self.TR)
 
     # Create a nitime Analyzer instance.
-    eva = nt.analysis.EventRelatedAnalyzer(
-            ts_bold, ts_trials, window_size)
+    eva = nt.analysis.EventRelatedAnalyzer(ts_bold, ts_trials, window_size)
 
     # Now do the find the event-relared averaged by FIR:
     # For details see the nitime module and,
@@ -54,5 +63,8 @@ def mean_fir(self, window_size=30):
         ## hrf if the mean of all 
         ## conditions in trials
 
+    hrf = hrf/hrf.max()
+        ## Norm it
+    
     return hrf
 

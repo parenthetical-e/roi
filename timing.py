@@ -2,18 +2,15 @@
 import numpy as np
 
 
-def dtime(trials, durations, drop=None):
-    """ Map <trials>, a sequences of values (could be integers,
-    representing trial conditions or real valued data from model) 
-    into another temporal space, using duration, an integer, 
-    specifiying the length of each trial.
+def dtime(arr, durations, drop=None, drop_value=0):
+    """ Repeat elements or rows in <arr> by durations.
     
     <drop> allows you to create sub-trial/duration time 
     representations. It is a binary list of length duration.  
     '1' mean drop that entry, 0 means keep.  Dropped trial
     codes are also 0.
     
-    For example, if trial was 2 and duration was 3
+    For example, if a row was 2 and duration was 3
     the new represenation would be for trial would be 
     [2, 2, 2] if drop was None or [0, 0, 0].  
     
@@ -21,12 +18,18 @@ def dtime(trials, durations, drop=None):
     [2, 0, 2].  Likwise if drop was [1, 0, 1] trial would be
     [0, 2, 0].
         
+    In the above, the drop_value was set to the default (0)
+    to alters this change <drop_value>, for example
+    a string '0' or a bool False would work.
+
     Note: If duration for that trial is less than the length
     of drop, rightside excess entries of drop are ignored.
 
     Returns a list of the duration mapped trials. """
-
+    
+    trials = arr
     dtrials = []
+
     if drop == None:
         # Using tuple math, repeat trial by dur
         # adding flattly to dtrials.
@@ -36,16 +39,16 @@ def dtime(trials, durations, drop=None):
         # As above but dropping trial entries       
         mask = np.array(drop) == 1
             ## Convert drop to a bool mask
-        
+    
         for trial, dur in zip(trials, durations):
             dtrial = np.array([trial, ] * dur)
-            dtrial[mask[0:dur]] = 0
+            dtrial[mask[0:dur]] = drop_value
                 ## Apply mask
                 ## drop rightside excess entries in drop as dur 
 
             dtrials.extend(dtrial.tolist())
 
-    return dtrials
+    return np.array(dtrials)
 
 
 def add_empty(data, conditions):

@@ -16,14 +16,16 @@ class Roi():
     The basic. It does OLS regression. 
     """
     
-    def __init__(self, TR, roi_name, trials, data):
+    def __init__(self, TR, roi_name, trials, durations, data):
         # ---
         # User defined variables
         self.TR = TR
-        self.trials = trials
         self.roi_name = roi_name
+        self.trials = np.array(trials)
+        self.durations = np.array(durations)
 
-        if data == None:
+        self.data = data
+        if self.data == None:
             self.data = {}
 
         self.data['meta'] = {}  ## meta is for model metadata
@@ -112,27 +114,28 @@ class Roi():
         
         if len(arr.shape) > 2:
             raise ValueError("<arr> must be 1 or 2d.")
-        
-        try:
-            n_col = arr.shape[1]
-        except IndexError:
-            n_col = 1
 
+        # Then use nitime to 
+        # high pass filte using FIR
+        # (~1/128 s, same cutoff as SPM8's default)
+
+        # FIR did well in:
+        #
+        # Comparison of Filtering Methods for fMRI Datasets
+        # F. Kruggela, D.Y. von Cramona, X. Descombesa
+        # NeuroImage 10 (5), 1999, 530 - 543.
         filtered = np.ones_like(arr)
-        for col in range(n_col):         
-            # Then use nitime to 
-            # high pass filte using FIR
-            # (~1/128 s, same cutoff as SPM8's default)
-
-            # FIR did well in:
-            #
-            # Comparison of Filtering Methods for fMRI Datasets
-            # F. Kruggela, D.Y. von Cramona, X. Descombesa
-            # NeuroImage 10 (5), 1999, 530 - 543.
-            tsi = nitime.TimeSeries(arr[...,col], 1, self.TR)
+        try:
+            # Try 2d first...
+            for col in range(arr.shape[1]):         
+                tsi = nitime.TimeSeries(arr[:,col], 1, self.TR)
+                fsi = nitime.analysis.FilterAnalyzer(tsi, ub=None, lb=0.008)
+                filtered[...,col] = fsi.fir.data
+        except IndexError:
+            # Fall back to 1d
+            tsi = nitime.TimeSeries(arr, 1, self.TR)
             fsi = nitime.analysis.FilterAnalyzer(tsi, ub=None, lb=0.008)
-            
-            filtered[...,col] = fsi.fir.data
+            filtered = fsi.fir.data
 
         return filtered
 
@@ -157,7 +160,8 @@ class Roi():
         # TODO - the orth
 
         return orth_arr
-
+    
+    
     def create_hrf(self, function_name, params=None):
         """ Creates an hemodynamic response model using the 
         function named <function_name> in roi.hrfs using
@@ -175,40 +179,40 @@ class Roi():
             self.hrf = getattr(roi.hrfs, function_name)(self, **params)
 
 
-    def create_dm(self, convolve=True):
+    def create_dm(self, drop=None, convolve=True):
         """ Create a unit (boxcar-only) DM with one columns for each 
         condition in self.trials.  
         
          If <convolve> the dm is convolved with the HRF (self.hrf). """
 
-        trials_arr = np.array(self.trials)
-            ## Makes masking easy
-
         cond_levels = sorted(list(set(self.trials)))
-            ## Find and sort unique onsets, 
-            ## aka condition levels
-       
+            ## Find and sort conditions in trials
+
         # Some useful counts...
-        num_trials = len(self.trials)
         num_conds = len(cond_levels)
+        num_tr = np.sum(self.durations)
+        num_trials = len(self.trials)
 
         # Map each condition in trials to a
         # 2d binary 2d array.  Each row is a trial
         # and each column is a condition.
-        dm_unit = np.zeros((num_trials, num_conds))
+        dm_unit = np.zeros((num_tr, num_conds))
         for col, cond in enumerate(cond_levels):
-            mask = trials_arr == cond
-                ## as a boolean array
+            # Create boolean array use it to 
+            # populate the dm with ones... 
+            # which must be in tr time.
+            mask_in_tr = roi.timing.dtime(
+                    self.trials == cond, self.durations, None, False)
 
-            dm_unit[mask,col] = 1
+            dm_unit[mask_in_tr,col] = 1
 
         self.dm = dm_unit
-        
         if convolve:
             self.dm = self._convolve_hrf(self.dm)
 
 
-    def create_dm_param(self, names, box=True, orth=False, convolve=True):
+    def create_dm_param(self, names, drop=None, box=True, 
+            orth=False, convolve=True):
         """ Create a parametric design matrix based on <names> in self.data. 
         
         If <box> a univariate dm is created that fills the leftmost
@@ -219,50 +223,57 @@ class Roi():
         
         If <convolve> the dm is convolved with the HRF (self.hrf). """
 
-        trials_arr = np.array(self.trials)
-            ## Makes masking easy
-
-        # Uses names to retrieve data from self.data
-        name_data = {}
-        [name_data.update({name:self.data[name]}) for name in names]
-
         cond_levels = sorted(list(set(self.trials)))
-            ## Find and sort unique trials, i.e. 
-            ## conditions
+            ## Find and sort conditions in trials
        
         # Some useful counts...
         num_trials = len(self.trials)
         num_names = len(names)
-
-        # For each cond in trials, create a temporary
-        # DM, then loop over each name, using a
-        # cond mask to select the right data
-        dm_name_data = None
-            ## Will hold the final parametric DM.
+        num_tr = np.sum(self.durations)
+        
+        dm_param = None
+            ## Will eventually hold the 
+            ## parametric DM.
 
         for cond in cond_levels:
-            dm_temp = np.zeros((num_trials, num_names))
+            if cond == 0:
+                continue
+                    ## We add the baseline 
+                    ## in at the end
 
-            mask = trials_arr == cond
+            # Create a temp dm to hold this
+            # condition's data
+            dm_temp = np.zeros((num_tr, num_names))
 
+            mask_in_tr = roi.timing.dtime(
+                    self.trials == cond, self.durations, drop, False)
+
+            # Get the named data, convert to tr time 
+            # then add to the temp dm using the mask
             for col, name in enumerate(names):
-                dm_temp[mask,col] = name_data[name][mask]
-                    ## Get the named data, then mask it
+                data_in_tr = roi.timing.dtime(
+                            self.data[name], self.durations, drop, 0)
 
+                dm_temp[mask_in_tr,col] = data_in_tr[mask_in_tr]
+                    
             # Store the temporary DM in 
             # the final DM.
-            if dm_name_data == None:
-                dm_name_data = dm_temp
+            if dm_param == None:
+                dm_param = dm_temp  ## reinit
             else:
-                dm_name_data = np.hstack((dm_name_data, dm_temp))
+                dm_param = np.hstack((dm_param, dm_temp))  ## adding
 
         # Create the unit DM too, then combine them.
         # defining self.dm in the process
-        dm_unit = self._create_dm_unit()
+        self.create_dm(convolve=False)
+        dm_unit = self.dm.copy(); self.dm = None  
+            ## Copy and reset
         if box:
-            self.dm = np.hstack((dm_unit, dm_name_data))
+            self.dm = np.hstack((dm_unit, dm_param))
         else:
-            self.dm = np.hstack((dm_unit[:,0], dm_name_data))
+            baseline = dm_unit[:,0]
+            baseline = baseline.reshape(baseline.shape[0], 1)
+            self.dm = np.hstack((baseline, dm_param))
                 ## If not including the boxcar,
                 ## we still need the baseline model.
 
@@ -293,22 +304,22 @@ class Roi():
             ## but we want an inverted mask...
         
         # Create a masked array...
-        mdata = np.ma.MaskArray(data=data, mask=mask)
+        mdata = np.ma.MaskedArray(data=data, mask=mask)
 
         # Use masked array to average over x, y, z
         # only for non-zero fMRI data, 
         # resulting in a 1d times series
         self.bold = np.asarray(mdata.mean(0).mean(0).mean(0).data)
-        
+         
         if preprocess:
             self.bold = self._filter_array(self.bold)
-    
+        
 
     def fit(self, norm='zscore'):
         """ Calculate the regression parameters and statistics. """
         
-        bold = self.bold
-        dm = self.dm
+        bold = self.bold.copy()
+        dm = self.dm.copy()
         
         # Normalize both the bold and dm
         if norm != None:
@@ -329,7 +340,13 @@ class Roi():
         dm_dummy = np.ones((dm.shape[0], dm.shape[1] + 1))
         dm_dummy[0:dm.shape[0], 0:dm.shape[1]] = dm
         
-        # Go!
+        # Truncate bold or dm_dummy if needed, and Go!
+        try:
+            bold = bold[0:dm_dummy.shape[0]]
+            dm_dummy = dm_dummy[0:len(bold),:]
+        except IndexError:
+            pass
+
         self.glm = GLS(bold, dm_dummy).fit()
     
     
@@ -358,13 +375,48 @@ class Roi():
         self.data['meta']['bold'] = self.roi_name
         self.data['meta']['dm'] = [str(cond) for cond in set(self.trials)]
 
-        self.create_bold(preprocess=True)
-        self.create_hrf(function_name='mean_fir', params={'window_size':24})
         self.create_dm(convolve=True)
         
         self.fit(norm='zscore')
 
 
+    def print_model_summary(self):
+        """ Prints all defined model names and their docstrings. """
+
+        # find all self.model_N attritubes and run them.
+        all_attr = dir(self)
+        all_attr.sort()
+        past_models = []
+        model_count = 0
+        for attr in all_attr:
+            a_s = re.split('_', attr)
+            
+            # Match only model_N where N is an integer
+            if len(a_s) == 2:
+                if (a_s[0] == 'model') and (re.match('\A\d+\Z', a_s[1])):
+                    
+                    model_count += 1
+
+                    model = attr
+                        ## Rename for clarity
+
+                    # Model name must be unique.
+                    if model in past_models:
+                        raise AttributeError(
+                                '{0} was not unique.'.format(model))
+                    past_models.append(model)
+
+                    # Now call the model and
+                    # print its info out.
+                    print("{0}. {1}:".format(model_count, model))
+                    try:
+                        func = getattr(self, model)
+                        print(func.im_func.func_doc)                    
+                    except KeyError:
+                        print("Data not Found.  Moving on.")
+                        continue
+
+    
     def run(self, code):
         """
         Run all defined models in order, returning their tabulated results.
@@ -389,17 +441,25 @@ class Roi():
             if len(a_s) == 2:
                 if (a_s[0] == 'model') and (re.match('\A\d+\Z', a_s[1])):
                     
+                    model = attr
+                        ## Rename for clarity
+
                     # Model name must be unique.
-                    if attr in past_models:
+                    if model in past_models:
                         raise AttributeError(
-                                '{0} was not unique.'.format(attr))
-                    past_models.append(attr)
+                                '{0} was not unique.'.format(model))
+                    past_models.append(model)
 
                     # Now call the model and
                     # save its results.
-                    print('Fitting {0}.'.format(attr))
-                    getattr(self, attr)()
-                    self.extract_results(name=attr)
+                    print('Fitting {0}.'.format(model))
+                    try:
+                        getattr(self, model)()
+                    except KeyError:
+                        print("Data not Found.  Moving on.")
+                        continue
+
+                    self.extract_results(name=model)
         
         return self.results
         
@@ -415,6 +475,7 @@ class Roi():
             'roi_name':'roi_name',
             'TR':'TR',
             'trials':'trials',
+            'durations':'durations',
             'data':'data',
             'dm':'dm',
             'hrf':'hrf',
