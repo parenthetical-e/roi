@@ -43,21 +43,21 @@ def write_hdf(results, name):
 def write_nifti(nifti, name):
     """ Write out the <nifti> object, name it <name>. """
     
-    nb.save(nifti, name)
+    nb.save(nifti, name)     
 
 
-def read_hdf(name, path='/model_01/bic'):
+def get_hdf_data(name, path):
     """ In the <hdf> file, for every top-level node return the 
     data specified by path. """
 
     # First locate the dataset in the first result,
     # then grab that data for every run.
     hdf = h5py.File(name, 'r')
-
+    
     return [hdf[node + path].value for node in hdf.keys()]
 
 
-def read_hdf_inc(name, path='/model_01/bic'):
+def get_hdf_data_inc(name, path):
     """ In <name> (a hdf file), for every top-level node *incrementally* 
     return the data specified by <path>. """
 
@@ -89,22 +89,76 @@ def read_trials(name):
 
     return trials
 
-  
-def read_roi_csv(name):
-    """ Read in <name>ed roi data. """
 
-    return np.loadtxt(name, delimiter=',')
+def get_model_names(hdf5_name):
+    """ Return the model names in <hdf5_name>. """
+    # Open,
+    hdf = h5py.File(hdf5_name, 'r')
+
+    # Get the model names, dropping the 'batch_code'
+    # as it is not a model.
+    models = hdf['/0'].keys()
+    del(models[models.index('batch_code')])
+    
+    return models
 
 
-def get_results_meta(name, model):
+def get_metadata(hdf5_name, model_name):
     """ Get the BOLD and DM metadata for <model> from the hdf file
     <name>. """
 
-    hdf = h5py.File(name,'r')
-
+    # Open,
+    hdf = h5py.File(hdf5_name, 'r')
+    
+    # and get its metadata.
     meta = {}
-    meta['bold'] = hdf['/0/' + model + '/data/meta/bold'].value
-    meta['dm'] = hdf['/0/'+ model + '/data/meta/dm'].value.tolist()
+    meta['bold'] = hdf['/1/' + model_name + '/data/meta/bold'].value
+    meta['dm'] = hdf['/1/' + model_name + '/data/meta/dm'].value
 
     return meta
+
+
+def get_roi_names(hdf5_name):
+    """ Returns a list of the roi names in <hdf5_name>. """
+    
+    return get_hdf_data(hdf5_name, '/batch_code')
+
+
+def write_all_scores_as_df(hdf5_name, code):
+    """ Using the data from <hdf5_name>, write all model fit scores 
+    for all ROIs in a DataFrame. <code> should be the subject code. """
+    from copy import deepcopy
+    
+    model_names = get_model_names(hdf5_name)
+    roi_names = get_roi_names(hdf5_name)
+    score_names = ['bic', 'aic', 'llf', 'r', 'r_adj', 'fvalue', 'f_pvalue']
+
+    dataframe = []
+        ## Score names will be the header
+        ## of the dataframe
+
+    for model in model_names:
+        data = np.zeros((len(roi_names), len(score_names)))
+            ## Will hold only the numerical scores
+        for col, score in enumerate(score_names):
+            path = '/'.join(['', model, score])
+            data[:,col] = get_hdf_data(hdf5_name, path)
+        
+        for row, roi in zip(data, roi_names):
+            # Build ech row of the dataframe...
+            # Combine data with the metadata 
+            # for that model/roi/etc
+            meta = get_metadata(hdf5_name, model)        
+            df_row = row.tolist() + [
+                    code, str(roi), model, '_'.join(meta['dm'])]
+            dataframe.append(df_row)
+
+    # And write it out.
+    header = score_names + ['sub', 'roi', 'model', 'dm']
+    filename = str(code) + '_roi_model_scores.txt'
+    fid = open(filename, 'w')
+    writer = csv.writer(fid, delimiter='\t')
+    writer.writerow(header)
+    writer.writerows(dataframe)
+    fid.close()
 

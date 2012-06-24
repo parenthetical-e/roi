@@ -71,28 +71,36 @@ class Roi():
 
     def _reformat_model(self):
         """
-        Use save_state() to store the simulation's state.
+        Use extract_results() to store the simulation's state.
         
         This private method just extracts relevant data from the regression
         model into a dict.
         """
-
+        
         tosave = {
             'beta':'params',
             't':'tvalues',
+            'f_pvalue':'f_pvalue',
             'fvalue':'fvalue',
             'p':'pvalues',
             'r':'rsquared',
+            'r_adj':'rsquared_adj',
             'ci':'conf_int',
             'resid':'resid',
+            'wresid':'wresid',
             'aic':'aic',
             'bic':'bic',
             'llf':'llf',
+            'bse':'bse',
+            'nobs':'nobs',
+            'df_model':'df_model',
+            'df_resid':'df_resid',
+            'ess':'ess',
+            'ssr':'ssr',
             'mse_model':'mse_model',
             'mse_resid':'mse_resid',
             'mse_total':'mse_total',
-            'pretty_summary':'summary'
-        }
+            'pretty_summary':'summary'}
         
         # Try to get each attr (a value in the dict above)
         # first as function (without args) then as a regular
@@ -349,8 +357,8 @@ class Roi():
 
         self.glm = GLS(bold, dm_dummy).fit()
     
-    
-    def contrast(self, contrast):
+
+    def contrast(self, contrast, name):
         """ Uses the current model to statistically compare predictors 
         (t-test), returning df, t and p values.
         
