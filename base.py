@@ -1,5 +1,6 @@
 """ Class templates for parametric fMRI ROI analyses, 
 done programatically. """
+import os
 import re
 import nibabel
 import nitime
@@ -155,21 +156,77 @@ class Roi():
         return getattr(roi.norm, function_name)(arr)
 
 
-    def _orth_array(self, arr):
-        """ Orthgonalize each col in (2d) <arr> with respect to its 
-        left neighbor.  """
+    def _orth_dm(self):
+        """ Orthgonalize (by regression) each col in self.dm with respect to 
+        its left neighbor. """
+        
+        dm = self.dm  
+            ## Rename for brevity
+        
+        # Make sure conds and ncol dm
+        # are divisors
+        conds = list(set(self.trials))
+        nconds = len(conds) - 1;     ## Drop baseline
+        ncols = dm.shape[1] - 1
+        if ncols % nconds:
+            raise ValueError(
+                "The number of condtions and shape of the dm are incompatible.")
 
-        arr = np.array(arr)
-        if arr.ndim != 2:
-            raise ValueError("arr must be 2d.")
+        orth_dm = np.zeros_like(dm)
+        orth_dm[:,0] = dm[:,0]
+            ## Move baseline data over
 
-        orth_arr = np.zeros_like(arr)
+        # Use num_col_per_cond, along with nconds 
+        # to find the strides we need to take along
+        # the DM to orthgonalize each set of col(s) 
+        # belonging to each cond.
+        num_col_per_cond = ncols / nconds
+        for cond in conds:
+            # Skip baseline
+            if cond == 0: continue
 
-        # TODO - the orth
+            # (Re)init col indices
+            left = cond
+            right = cond + nconds
+            
+            # Rolling loop over the cols_per_cond
+            # orthgonalizing as we go.
+            for cnt in range(num_col_per_cond-1):
+                # Orthgonalize left col to right....
+                glm = GLS( dm[:,right], dm[:,left]).fit()  ## GLS(y, x)
+                orth_dm[:,right] = glm.resid
+                orth_dm[:,left] = dm[:,left]
+               
+                # Shift indices for next iteration.
+                left = deepcopy(right)
+                right = right + nconds
 
-        return orth_arr
-    
-    
+        self.dm = orth_dm
+
+
+    def _write_bold(self):
+        """ Write the bold signal to a file in ./bold. """
+        
+        no_exten = re.split('\.', self.roi_name)[0]
+        pathsplit = re.split('/', no_exten)
+        drop_path = pathsplit[-1]
+        name = drop_path + '_bold.txt'
+            ## Grab the non-file extension, non-path, 
+            ## parts of roi_name and
+            ## append a new extention.
+        
+        # Create a bold dir nested where roi_name is stored, 
+        # if needed that is.
+        bold_path = '/'.join(pathsplit[0:-1] + ['bold', ])
+        if not os.path.exists(bold_path):
+            os.mkdir(bold_path)
+
+        # Write!
+        fid = open('/'.join([bold_path, name]), 'w')
+        self.bold.tofile(fid, sep='\n')
+        fid.close()
+
+
     def create_hrf(self, function_name, params=None):
         """ Creates an hemodynamic response model using the 
         function named <function_name> in roi.hrfs using
@@ -215,6 +272,7 @@ class Roi():
             dm_unit[mask_in_tr,col] = 1
 
         self.dm = dm_unit
+        
         if convolve:
             self.dm = self._convolve_hrf(self.dm)
 
@@ -276,6 +334,7 @@ class Roi():
         self.create_dm(convolve=False)
         dm_unit = self.dm.copy(); self.dm = None  
             ## Copy and reset
+
         if box:
             self.dm = np.hstack((dm_unit, dm_param))
         else:
@@ -286,15 +345,11 @@ class Roi():
                 ## we still need the baseline model.
 
         # Orthgonalize the regessors?
-        if orth:
-            if (dm_unit.ndim > 1) and (dm_unit.shape[1] > 2):
-                raise ValueError("orth can't be used if the univariate DM\
-                        has more than one non-baseline entry.")
-
-            self.dm = _orth_arr(self.dm)
+        if orth: 
+            self._orth_dm()
 
         # Convolve with self.hrf?
-        if convolve:
+        if convolve: 
             self.dm = self._convolve_hrf(self.dm)
 
 
@@ -318,7 +373,11 @@ class Roi():
         # only for non-zero fMRI data, 
         # resulting in a 1d times series
         self.bold = np.asarray(mdata.mean(0).mean(0).mean(0).data)
-         
+        
+        # Now archive the bold signal, 
+        # prior to any preprocessing
+        self._write_bold()
+
         if preprocess:
             self.bold = self._filter_array(self.bold)
         
@@ -384,7 +443,7 @@ class Roi():
         self.data['meta']['dm'] = [str(cond) for cond in set(self.trials)]
 
         self.create_dm(convolve=True)
-        
+
         self.fit(norm='zscore')
 
 
@@ -483,7 +542,7 @@ class Roi():
             'roi_name':'roi_name',
             'TR':'TR',
             'trials':'trials',
-            'durations':'durations',
+            'duration;fs':'durations',
             'data':'data',
             'dm':'dm',
             'hrf':'hrf',
@@ -509,4 +568,28 @@ class Roi():
         # Now add the reformatted data from the current model,
         # if any.
         self.results[name].update(self._reformat_model())
+
+
+class Mean(Roi):
+    """ A variant of Roi that uses averaged BOLD data, from
+    a text file instaed of a nii. 
+    
+    <roi_name> should be the path to that file. """
+
+
+    def __init__(self, TR, roi_name, trials, durations, data):
+        Roi.__init__(self, TR, roi_name, trials, durations, data)   
+
+    
+    def create_bold(self, preprocess=True):
+        """ Read in the fMRI data from <roi_name> and <preprocess> it,
+        if True. 
+        
+        The BOLD file should contain in a single column, like that 
+        made by _write_bold() """
+        
+        self.bold = np.loadtxt(self.roi_name)
+        
+        if preprocess:
+            self.bold = self._filter_array(self.bold)
 

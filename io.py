@@ -54,7 +54,7 @@ def get_hdf_data(name, path):
     # then grab that data for every run.
     hdf = h5py.File(name, 'r')
     
-    return [hdf[node + path].value for node in hdf.keys()]
+    return [hdf[node + path].value for node in sorted(hdf.keys())]
 
 
 def get_hdf_data_inc(name, path):
@@ -65,7 +65,7 @@ def get_hdf_data_inc(name, path):
     # then grab that data for every run.
     hdf = h5py.File(name, 'r')
 
-    for node in hdf.keys():
+    for node in sorted(hdf.keys()):
         yield hdf[node + path].value
 
 
@@ -97,7 +97,7 @@ def get_model_names(hdf5_name):
 
     # Get the model names, dropping the 'batch_code'
     # as it is not a model.
-    models = hdf['/0'].keys()
+    models = sorted(hdf['/0'].keys())
     del(models[models.index('batch_code')])
     
     return models
