@@ -172,36 +172,39 @@ class Roi():
             raise ValueError(
                 "The number of condtions and shape of the dm are incompatible.")
 
-        orth_dm = np.zeros_like(dm)
-        orth_dm[:,0] = dm[:,0]
-            ## Move baseline data over
+        # If these are the same size there is nothing to
+        # orthgonalize.
+        if ncols != nconds:
+            orth_dm = np.zeros_like(dm)
+            orth_dm[:,0] = dm[:,0]
+                ## Move baseline data over
 
-        # Use num_col_per_cond, along with nconds 
-        # to find the strides we need to take along
-        # the DM to orthgonalize each set of col(s) 
-        # belonging to each cond.
-        num_col_per_cond = ncols / nconds
-        for cond in conds:
-            # Skip baseline
-            if cond == 0: continue
+            # Use num_col_per_cond, along with nconds 
+            # to find the strides we need to take along
+            # the DM to orthgonalize each set of col(s) 
+            # belonging to each cond.
+            num_col_per_cond = ncols / nconds
+            for cond in conds:
+                # Skip baseline
+                if cond == 0: continue
+                left = cond
+                right = cond + nconds
+                
+                # Rolling loop over the cols_per_cond
+                # orthgonalizing as we go.
+                for cnt in range(num_col_per_cond-1):
+                    # Orthgonalize left col to right....
+                    glm = GLS( dm[:,right], dm[:,left]).fit()  ## GLS(y, x)
+                    orth_dm[:,right] = glm.resid
+                    orth_dm[:,left] = dm[:,left]
+                   
+                    # Shift indices for next iteration.
+                    left = deepcopy(right)
+                    right = right + nconds
 
-            # (Re)init col indices
-            left = cond
-            right = cond + nconds
-            
-            # Rolling loop over the cols_per_cond
-            # orthgonalizing as we go.
-            for cnt in range(num_col_per_cond-1):
-                # Orthgonalize left col to right....
-                glm = GLS( dm[:,right], dm[:,left]).fit()  ## GLS(y, x)
-                orth_dm[:,right] = glm.resid
-                orth_dm[:,left] = dm[:,left]
-               
-                # Shift indices for next iteration.
-                left = deepcopy(right)
-                right = right + nconds
-
-        self.dm = orth_dm
+            self.dm = orth_dm
+        else:
+            print("Nothing to orthgonalize.")
 
 
     def _write_bold(self):

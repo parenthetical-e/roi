@@ -18,8 +18,8 @@ def zscore(arr):
     # y_i_j = (x_i_j - u_j) / s_j
     std = arr.std(0)
     mean = arr.mean(0)
-
-    return (arr - mean) / std
+    
+    return np.nan_to_num((arr - mean) / std)
 
 
 def percent_change(arr):

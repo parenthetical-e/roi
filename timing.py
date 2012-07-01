@@ -3,16 +3,16 @@ import numpy as np
 
 
 def dtime(arr, durations, drop=None, drop_value=0):
-    """ Repeat elements or rows in <arr> by durations.
+    """ Repeat each element or row in <arr> by the factor
+    specified in durations.
     
     <drop> allows you to create sub-trial/duration time 
-    representations. It is a binary list of length duration.  
-    '1' mean drop that entry, 0 means keep.  Dropped trial
-    codes are also 0.
+    representations. It is a binary list of length duration.
+    '1' mean drop that entry; 0 means keep.
     
-    For example, if a row was 2 and duration was 3
-    the new represenation would be for trial would be 
-    [2, 2, 2] if drop was None or [0, 0, 0].  
+    For example, if the next element was 2 and duration was 3
+    the new represenation would be [2, 2, 2] if, that is,
+    drop was None or [0, 0, 0].  
     
     However if drop was [0, 1, 0] the trial would become
     [2, 0, 2].  Likwise if drop was [1, 0, 1] trial would be
@@ -20,10 +20,10 @@ def dtime(arr, durations, drop=None, drop_value=0):
         
     In the above, the drop_value was set to the default (0)
     to alters this change <drop_value>, for example
-    a string '0' or a bool False would work.
+    a string '0' or a bool (False) would work just as well.
 
     Note: If duration for that trial is less than the length
-    of drop, rightside excess entries of drop are ignored.
+    of drop, the rightside excess entries of drop are ignored.
 
     Returns a list of the duration mapped trials. """
     

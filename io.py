@@ -155,7 +155,7 @@ def write_all_scores_as_df(hdf5_name, code):
 
     # And write it out.
     header = score_names + ['sub', 'roi', 'model', 'dm']
-    filename = str(code) + '_roi_model_scores.txt'
+    filename = hdf5_name.split('.')[0] +  '_scores.txt'
     fid = open(filename, 'w')
     writer = csv.writer(fid, delimiter='\t')
     writer.writerow(header)
