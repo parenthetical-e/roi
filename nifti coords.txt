@@ -1,0 +1,35 @@
+
+# http://nifti.nimh.nih.gov/nifti-1/documentation/faq#Q2
+
+For T&T, and MNI coordinates, x increases from left to right, y increases from posterior to anterior, and z increases in the inferior to superior direction.
+
+# from spm_realign.m (in SPM8)
+
+The voxel to world mappings.
+
+These are simply 4x4 affine transformation matrices represented in the
+NIFTI headers (see http://nifti.nimh.nih.gov/nifti-1 ).
+These are normally modified by the `realignment' and `coregistration'
+modules.  What these matrixes represent is a mapping from
+the voxel coordinates (x0,y0,z0) (where the first voxel is at coordinate
+(1,1,1)), to coordinates in millimeters (x1,y1,z1).
+ 
+x1 = M(1,1)*x0 + M(1,2)*y0 + M(1,3)*z0 + M(1,4)
+y1 = M(2,1)*x0 + M(2,2)*y0 + M(2,3)*z0 + M(2,4)
+z1 = M(3,1)*x0 + M(3,2)*y0 + M(3,3)*z0 + M(3,4)
+
+Assuming that image1 has a transformation matrix M1, and image2 has a
+transformation matrix M2, the mapping from image1 to image2 is: M2\M1
+(ie. from the coordinate system of image1 into millimeters, followed
+by a mapping from millimeters into the space of image2).
+
+These matrices allow several realignment or coregistration steps to be
+combined into a single operation (without the necessity of resampling the
+images several times).  The `.mat' files are also used by the spatial
+normalisation module.
+__________________________________________________________________________
+Ref:
+Friston KJ, Ashburner J, Frith CD, Poline J-B, Heather JD & Frackowiak
+RSJ (1995) Spatial registration and normalization of images Hum. Brain
+Map. 2:165-189
+
