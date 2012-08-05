@@ -132,7 +132,7 @@ def write_all_scores_as_df(hdf5_name, code):
     model_names = get_model_names(hdf5_name)
     roi_names = get_roi_names(hdf5_name)
     score_names = ['bic', 'aic', 'llf', 'r', 'r_adj', 'fvalue', 
-            'f_pvalue', 'df_model']
+            'f_pvalue', 'df_model','df_resid']
 
     dataframe = []
         ## Score names will be the header
