@@ -466,7 +466,6 @@ class Roi():
                 if (a_s[0] == 'model') and (re.match('\A\d+\Z', a_s[1])):
                     
                     model_count += 1
-
                     model = attr
                         ## Rename for clarity
 

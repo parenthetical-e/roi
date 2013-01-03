@@ -71,5 +71,3 @@ def create_rois(atlas, base, legend):
             ## but just in case
 
         write_nifti(nifti, os.path.join(path, atlas, 'rois', niftiname))
-
-

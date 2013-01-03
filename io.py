@@ -141,6 +141,7 @@ def write_all_scores_as_df(hdf5_name, code):
     for model in model_names:
         data = np.zeros((len(roi_names), len(score_names)))
             ## Will hold only the numerical scores
+        
         for col, score in enumerate(score_names):
             path = '/'.join(['', model, score])
             data[:,col] = get_hdf_data(hdf5_name, path)
