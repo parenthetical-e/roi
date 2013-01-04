@@ -3,6 +3,7 @@ import os
 import nibabel as nb
 import numpy as np
 import roi
+from zipfile import ZipFile
 from roi.io import write_nifti, read_nifti
     
 
@@ -10,7 +11,16 @@ def get_roi(atlas, name):
     """ Get the an roi (a nifti1 object) by <name> from <atlas>.  
     
     NOTE: For all options see atlases.txt. """
-
+    
+    # Unzip atlases if needed.
+    if not os.path.exists(os.path.join(roi.__path__[0], 'atlases')):
+        print("Unzipping atlases.")
+        
+        unzme = ZipFile(os.path.join(roi.__path__[0], 'atlases.zip'))
+        unzme.extractall('')
+    
+    # Set the path for the named roi
+    # and try to open it.
     path = os.path.join(roi.__path__[0], 'atlases', atlas, 'rois', name)
     try:
         nifti = read_nifti(path)
