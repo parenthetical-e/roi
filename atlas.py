@@ -8,16 +8,7 @@ from roi.io import write_nifti, read_nifti
     
 
 def get_roi(atlas, name):
-    """ Get the an roi (a nifti1 object) by <name> from <atlas>.  
-    
-    NOTE: For all options see atlases.txt. """
-    
-    # Unzip atlases if needed.
-    if not os.path.exists(os.path.join(roi.__path__[0], 'atlases')):
-        print("Unzipping atlases.")
-        
-        unzme = ZipFile(os.path.join(roi.__path__[0], 'atlases.zip'))
-        unzme.extractall('')
+    """ Get the an roi (a nifti1 object) by <name> from <atlas>. """
     
     # Set the path for the named roi
     # and try to open it.
@@ -28,10 +19,21 @@ def get_roi(atlas, name):
         # If name can't be loaded you may need to run
         # create_rois, tell the user that.
     except IOError, err:
-        print("Could not load <name>. Try running create_rois()?")
+        print("Could not load <name>. Try create_rois() or open_atlases()")
         raise IOError(err)
     
     return nifti
+
+
+def open_atlases():
+    """ Uncompress the atlases file. """
+    
+    if not os.path.exists(os.path.join(roi.__path__[0], 'atlases')):
+        print("Unzipping atlases in {0}.".format(
+                os.path.join(roi.__path__[0], 'atlases')))
+        
+        unzme = ZipFile(os.path.join(roi.__path__[0], 'atlases.zip'))
+        unzme.extractall(path=roi.__path__[0])
 
 
 def create_rois(atlas, base, legend):
