@@ -41,8 +41,7 @@ def join_time(nifti1, nifti2):
 
 
 def num_active_voxels(nifti):
-    """ Returns the number of voxels in the first volume of <nifti> 
-    (a nibabel object) that contain data. """
+    """ Returns the number of voxels in the first volume of <nifti>. """
 
     # Assume 3d, but if 4d 
     # only keep first vol. 
@@ -54,7 +53,7 @@ def num_active_voxels(nifti):
 
 
 def mask(nifti, roi, standard=True):
-    """ Mask and returm the data in <nifti> with that in <roi> 
+    """ Mask and return the data in <nifti> with that in <roi> 
     (both should be nibabel obejcts). <roi> should be binary. 
     
     If <standard> is True (default) the q_form affine matrix is used.  
@@ -140,7 +139,7 @@ def mask(nifti, roi, standard=True):
             xyz in matches])
         ## Just invert the affine to get back
         ## to native space
-    
+
     # Use n_i_reduced to make a mask...
     # Starting with zeros at every match 
     # put in a 1, finally convert to bool.
