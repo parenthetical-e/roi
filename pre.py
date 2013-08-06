@@ -1,6 +1,28 @@
 """ A module for selecting voxels from within ROIs """
 import numpy as np
 import nibabel as nb
+from roi.io import read_nifti
+
+
+def combine4d(niftis):
+    """Combine the list of nifti objects along their 4th axis.
+    
+    Note:
+    ----
+    * Assumes the nifti header for the first is nii is represenative of 
+    the rest (use with care).
+    * nibabel offers nibabel.concat_images() but it concats by
+    creating a fifth axis, i.e., if nii1 was 10x10x10x10 and so
+    was nii2 the concat_nii would be 10x10x10x10x2 instead
+    of 10x10x10x20, the desired result.
+    """
+
+    # Init then join.
+    combine_nifti = niftis.pop(0)
+    for nifti in niftis:
+        combine_nifti = join_time(combine_nifti, nifti)
+
+    return combine_nifti
 
 
 def join_time(nifti1, nifti2):
@@ -102,7 +124,9 @@ def mask(nifti, roi, standard=True):
     # Find only voxels that are 1
     # in the roi native space
     # then convert these to standard space
-    roi_mask = roi.get_data() == 1
+    roi_mask = roi.get_data().astype('int16') == 1
+    print("{0} voxels in the mask.".format(np.sum(roi_mask)))
+
     roi_index = _native_index(roi_mask)
     roi_index_filtered = np.array(
             [
