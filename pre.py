@@ -88,7 +88,8 @@ def mask(nifti, roi, standard=True):
     
     as well as
        
-       http://nifti.nimh.nih.gov/dfwg/presentations/nifti-1-rationale """
+       http://nifti.nimh.nih.gov/dfwg/presentations/nifti-1-rationale 
+    """
 
     # -- 
     # Create nifti and roi meta-data
@@ -119,7 +120,6 @@ def mask(nifti, roi, standard=True):
             ## We need to add a empty 4th d
         n_vol = 1
             ## so this makes sense.
-
     # --
     # Find only voxels that are 1
     # in the roi native space
@@ -147,7 +147,7 @@ def mask(nifti, roi, standard=True):
     neighborhood[neighborhood < 1] = 1.0
         ## Any fractions or negative values should be set to zero
         ## as they are within the neighborhood
-    
+
     # As _search_neighborhood() returns subarays
     # Needed an efficient way to concat them
     # row-wise, thus list.extend()
@@ -175,7 +175,7 @@ def mask(nifti, roi, standard=True):
     nifti_data_reduced = np.zeros(nifti_shape + (n_vol, ), dtype=np.int16)
     for vol in range(n_vol):
         nifti_data_reduced[vol_mask,vol] += nifti_data[vol_mask,vol] 
- 
+
     # -- 
     # Return a nifti object with
     # proper meta-data
