@@ -9,7 +9,10 @@ import roi
 import numpy as np
 
 from copy import deepcopy
-from statsmodels.api import GLS
+try:
+    from scikits.statsmodels.api import GLS
+except ImportError:
+    from statsmodels.api import GLS
 
 
 class Roi():
