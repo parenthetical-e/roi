@@ -102,7 +102,7 @@ def mask(nifti, roi, standard=True):
         roi_affine = roi_head.get_sform()        
         nifti_affine = nifti_head.get_sform()
 
-    nifti_data = nifti.get_data()
+    nifti_data = nifti.get_data().astype('int16')
     nifti_shape = nifti.shape
 
     # --
@@ -124,7 +124,7 @@ def mask(nifti, roi, standard=True):
     # Find only voxels that are 1
     # in the roi native space
     # then convert these to standard space
-    roi_mask = roi.get_data().astype('int16') == 1
+    roi_mask = roi.get_data().astype('int8') == 1
     print("{0} voxels in the mask.".format(np.sum(roi_mask)))
 
     roi_index = _native_index(roi_mask)
@@ -143,16 +143,15 @@ def mask(nifti, roi, standard=True):
     # --
     # Find neighborhoods where nifti and roi overlap
     # (in standard space).
-    neighborhood = np.abs(np.diag(nifti_affine)[0:3])
-    neighborhood[neighborhood < 1] = 0
-        ## Any fractions should be set to zero
+    neighborhood = np.abs(np.diag(nifti_affine)[0:3]) - np.abs(np.diag(roi_affine)[0:3])
+    neighborhood[neighborhood < 1] = 1.0
+        ## Any fractions or negative values should be set to zero
         ## as they are within the neighborhood
-        ## by default
-
+    
     # As _search_neighborhood() returns subarays
     # Needed an efficient way to concat them
     # row-wise, thus list.extend()
-    matches = list()
+    matches = [] 
     [matches.extend(_search_neighborhood(
             nifti_std_index, xyz, neighborhood)) for xyz in roi_std_index]
     matches = np.array(matches)
@@ -167,16 +166,15 @@ def mask(nifti, roi, standard=True):
     # Use n_i_reduced to make a mask...
     # Starting with zeros at every match 
     # put in a 1, finally convert to bool.
-    vol_mask = np.zeros(nifti_shape)
+    vol_mask = np.zeros(nifti_shape, dtype=np.bool)
     for x, y, z in nifti_index_reduced:
-        vol_mask[x, y, z] = 1
-    vol_mask = vol_mask == 1
+        vol_mask[x, y, z] += True
 
     # -- 
     # Reduce the data from nifti 
-    nifti_data_reduced = np.zeros(nifti_shape + (n_vol, ))
+    nifti_data_reduced = np.zeros(nifti_shape + (n_vol, ), dtype=np.int16)
     for vol in range(n_vol):
-        nifti_data_reduced[vol_mask,vol] = nifti_data[vol_mask,vol]  
+        nifti_data_reduced[vol_mask,vol] += nifti_data[vol_mask,vol] 
  
     # -- 
     # Return a nifti object with
@@ -196,8 +194,9 @@ def _search_neighborhood(index, location, neighborhood):
     location = np.asarray(location)
     neighborhood = np.abs(np.asarray(neighborhood))
     
-    n_mask = np.sum(np.abs(index - location) <= neighborhood, axis=1) == 3
-
+    diff_index_location = np.abs(index - location)
+    n_mask = np.sum(diff_index_location <= neighborhood, axis=1) == 3
+    
     return index[n_mask,:]
     
         
