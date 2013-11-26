@@ -10,10 +10,10 @@ import numpy as np
 
 from copy import deepcopy
 try:
-    from scikits.statsmodels.api import GLS
-except ImportError:
     from statsmodels.api import GLS
-
+except ImportError:
+    from scikits.statsmodels.api import GLS
+    
 
 class Roi():
     """
